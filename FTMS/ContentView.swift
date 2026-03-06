@@ -169,15 +169,143 @@ struct ContentView: View {
     }
 
     private var animationPane: some View {
-        VStack {
-            Text("Animation Pane")
-                .font(.title3.weight(.semibold))
-            Text("Ready for metric-driven animation.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        GeometryReader { geometry in
+            let maxFloatDistance = geometry.size.height * 0.55
+            let floatOffset = -maxFloatDistance * floatProgress
+
+            ZStack {
+                LinearGradient(
+                    colors: [Color.blue.opacity(0.20), Color.cyan.opacity(0.10), Color.white.opacity(0.08)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                VStack(spacing: 6) {
+                    Text("Lift-Off Tracker")
+                        .font(.headline)
+                    Text("Units: \(ftmsManager.activityUnits)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 12)
+                .frame(maxHeight: .infinity, alignment: .top)
+
+                ZStack {
+                    houseShape
+
+                    ForEach(0..<5, id: \.self) { balloonIndex in
+                        balloonView(progress: balloonProgress(for: balloonIndex))
+                            .offset(balloonOffset(for: balloonIndex))
+                    }
+
+                    ForEach(0..<5, id: \.self) { stringIndex in
+                        balloonString(for: stringIndex)
+                            .stroke(Color.secondary.opacity(0.7), lineWidth: 1.5)
+                    }
+                }
+                .offset(y: floatOffset)
+                .animation(.easeInOut(duration: 0.35), value: ftmsManager.activityUnits)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, 20)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var floatProgress: CGFloat {
+        let extraUnits = max(0, ftmsManager.activityUnits - 60)
+        return min(CGFloat(extraUnits) / 40.0, 1.0)
+    }
+
+    private func balloonProgress(for index: Int) -> CGFloat {
+        // Requested ranges: 1-10, 11-20, 21-40, 41-50, 51-60
+        let ranges: [(start: Int, end: Int)] = [
+            (1, 10),
+            (11, 20),
+            (21, 40),
+            (41, 50),
+            (51, 60)
+        ]
+
+        let range = ranges[index]
+        let span = max(1, range.end - range.start + 1)
+        let progressed = ftmsManager.activityUnits - range.start + 1
+        return min(max(CGFloat(progressed) / CGFloat(span), 0), 1)
+    }
+
+    private func balloonOffset(for index: Int) -> CGSize {
+        let xOffsets: [CGFloat] = [-96, -48, 0, 48, 96]
+        let yOffsets: [CGFloat] = [-178, -198, -212, -198, -178]
+        return CGSize(width: xOffsets[index], height: yOffsets[index])
+    }
+
+    private func balloonString(for index: Int) -> Path {
+        let anchorX: [CGFloat] = [-65, -32, 0, 32, 65]
+        let balloonPoint = balloonOffset(for: index)
+
+        return Path { path in
+            path.move(to: CGPoint(x: anchorX[index], y: -38))
+            path.addQuadCurve(
+                to: CGPoint(x: balloonPoint.width, y: balloonPoint.height + 30),
+                control: CGPoint(x: (anchorX[index] + balloonPoint.width) * 0.55, y: balloonPoint.height * 0.45)
+            )
+        }
+    }
+
+    private var houseShape: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.brown.opacity(0.9))
+                .frame(width: 170, height: 115)
+                .offset(y: 36)
+
+            Path { path in
+                path.move(to: CGPoint(x: -95, y: -20))
+                path.addLine(to: CGPoint(x: 0, y: -95))
+                path.addLine(to: CGPoint(x: 95, y: -20))
+                path.closeSubpath()
+            }
+            .fill(Color.red.opacity(0.9))
+
+            Rectangle()
+                .fill(Color.white.opacity(0.95))
+                .frame(width: 34, height: 52)
+                .offset(y: 58)
+
+            Circle()
+                .fill(Color.yellow.opacity(0.85))
+                .frame(width: 24, height: 24)
+                .offset(x: -52, y: 28)
+
+            Circle()
+                .fill(Color.yellow.opacity(0.85))
+                .frame(width: 24, height: 24)
+                .offset(x: 52, y: 28)
+        }
+    }
+
+    private func balloonView(progress: CGFloat) -> some View {
+        let clamped = min(max(progress, 0), 1)
+        let size = 18 + (clamped * 44)
+
+        return ZStack {
+            Ellipse()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.pink.opacity(0.85), Color.purple.opacity(0.75)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size * 1.25)
+                .opacity(0.25 + (0.75 * clamped))
+
+            Circle()
+                .fill(Color.white.opacity(0.25))
+                .frame(width: size * 0.22, height: size * 0.22)
+                .offset(x: -size * 0.16, y: -size * 0.25)
+        }
     }
 }
 

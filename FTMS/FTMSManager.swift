@@ -47,6 +47,7 @@ final class FTMSManager: NSObject, ObservableObject {
     @Published private(set) var connectionState: String = "Not connected"
     @Published private(set) var metrics: [LiveMetric] = []
     @Published private(set) var rawValues: [RawCharacteristicValue] = []
+    @Published private(set) var activityUnits: Int = 0
     @Published private(set) var lastError: String?
 
     private let ftmsServiceUUID = CBUUID(string: "1826")
@@ -56,6 +57,7 @@ final class FTMSManager: NSObject, ObservableObject {
     private var metricStore: [String: String] = [:]
     private var rawStore: [String: RawCharacteristicValue] = [:]
     private var cscSnapshots: [UUID: CSCSnapshot] = [:]
+    private var lastRowerStrokeCount: UInt16?
 
     override init() {
         super.init()
@@ -117,6 +119,8 @@ final class FTMSManager: NSObject, ObservableObject {
         rawStore = [:]
         rawValues = []
         cscSnapshots = [:]
+        lastRowerStrokeCount = nil
+        activityUnits = 0
     }
 
     private func updateMetric(_ name: String, _ value: String) {
@@ -132,6 +136,11 @@ final class FTMSManager: NSObject, ObservableObject {
         rawValues = rawStore
             .values
             .sorted { $0.name < $1.name }
+    }
+
+    private func addActivityUnits(_ units: Int) {
+        guard units > 0 else { return }
+        activityUnits += units
     }
 
     private func parse(data: Data, for characteristicUUID: String, peripheralID: UUID) {
@@ -253,6 +262,14 @@ final class FTMSManager: NSObject, ObservableObject {
 
         if let strokeCount = parser.readUInt16(at: index) {
             updateMetric("Rower Stroke Count", "\(strokeCount)")
+
+            if let previousStrokeCount = lastRowerStrokeCount,
+               let delta = deltaCounter(current: strokeCount, previous: previousStrokeCount),
+               delta > 0 {
+                addActivityUnits(Int(delta))
+            }
+
+            lastRowerStrokeCount = strokeCount
             index += 2
         }
 
@@ -384,6 +401,7 @@ final class FTMSManager: NSObject, ObservableObject {
         var index = 1
 
         var snapshot = cscSnapshots[peripheralID] ?? CSCSnapshot()
+        var consumedUnitsFromWheel = false
 
         if flags.bit(0), let wheelRevolutions = parser.readUInt32(at: index), let wheelEventTime = parser.readUInt16(at: index + 4) {
             updateMetric("CSC Wheel Revolutions", "\(wheelRevolutions)")
@@ -398,6 +416,8 @@ final class FTMSManager: NSObject, ObservableObject {
                 let speedMetersPerSecond = revPerSecond * 2.105
                 updateMetric("CSC Speed", String(format: "%.2f km/h", speedMetersPerSecond * 3.6))
                 updateMetric("CSC Wheel RPM", String(format: "%.1f rpm", revPerSecond * 60.0))
+                addActivityUnits(Int(deltaRevolutions))
+                consumedUnitsFromWheel = true
             }
 
             snapshot.wheelRevolutions = wheelRevolutions
@@ -416,6 +436,11 @@ final class FTMSManager: NSObject, ObservableObject {
                deltaRevolutions > 0 {
                 let cadenceRPM = (Double(deltaRevolutions) / deltaSeconds) * 60.0
                 updateMetric("CSC Cadence", String(format: "%.1f rpm", cadenceRPM))
+
+                // Prefer wheel revolutions when present to avoid double counting combo sensors.
+                if !consumedUnitsFromWheel {
+                    addActivityUnits(Int(deltaRevolutions))
+                }
             }
 
             snapshot.crankRevolutions = crankRevolutions

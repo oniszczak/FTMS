@@ -173,7 +173,6 @@ struct ContentView: View {
             let sceneSize = CGSize(width: 320, height: 360)
             let maxFloatDistance = geometry.size.height * 0.58
             let floatOffset = -maxFloatDistance * floatProgress
-            let baseYOffset = geometry.size.height * 0.14
 
             ZStack {
                 LinearGradient(
@@ -194,7 +193,7 @@ struct ContentView: View {
 
                 ZStack {
                     houseShape
-                        .offset(y: 92)
+                        .offset(y: 70)
 
                     ForEach(0..<5, id: \.self) { stringIndex in
                         balloonString(for: stringIndex, in: sceneSize)
@@ -207,10 +206,9 @@ struct ContentView: View {
                     }
                 }
                 .frame(width: sceneSize.width, height: sceneSize.height)
-                .offset(y: baseYOffset + floatOffset)
+                .offset(y: floatOffset)
                 .animation(.easeIn(duration: 0.28), value: ftmsManager.activityUnits)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 12)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -247,8 +245,8 @@ struct ContentView: View {
 
     private func balloonString(for index: Int, in sceneSize: CGSize) -> Path {
         let center = CGPoint(x: sceneSize.width / 2.0, y: sceneSize.height / 2.0)
-        let anchorX: [CGFloat] = [-68, -34, 0, 34, 68]
-        let start = CGPoint(x: center.x + anchorX[index], y: center.y + 28)
+        let anchorX: [CGFloat] = [-86, -44, 0, 44, 86]
+        let start = CGPoint(x: center.x + anchorX[index], y: center.y + 58)
         let balloonPoint = balloonOffset(for: index)
         let balloonSize = 18 + (balloonProgress(for: index) * 44)
         let end = CGPoint(
@@ -260,7 +258,7 @@ struct ContentView: View {
             path.move(to: start)
             path.addQuadCurve(
                 to: end,
-                control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 24)
+                control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 18)
             )
         }
     }

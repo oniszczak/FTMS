@@ -170,8 +170,10 @@ struct ContentView: View {
 
     private var animationPane: some View {
         GeometryReader { geometry in
-            let maxFloatDistance = geometry.size.height * 0.55
+            let sceneSize = CGSize(width: 320, height: 360)
+            let maxFloatDistance = geometry.size.height * 0.58
             let floatOffset = -maxFloatDistance * floatProgress
+            let baseYOffset = geometry.size.height * 0.14
 
             ZStack {
                 LinearGradient(
@@ -192,21 +194,23 @@ struct ContentView: View {
 
                 ZStack {
                     houseShape
+                        .offset(y: 92)
+
+                    ForEach(0..<5, id: \.self) { stringIndex in
+                        balloonString(for: stringIndex, in: sceneSize)
+                            .stroke(Color.black.opacity(0.45), lineWidth: 1.8)
+                    }
 
                     ForEach(0..<5, id: \.self) { balloonIndex in
                         balloonView(progress: balloonProgress(for: balloonIndex))
                             .offset(balloonOffset(for: balloonIndex))
                     }
-
-                    ForEach(0..<5, id: \.self) { stringIndex in
-                        balloonString(for: stringIndex)
-                            .stroke(Color.secondary.opacity(0.7), lineWidth: 1.5)
-                    }
                 }
-                .offset(y: floatOffset)
-                .animation(.easeInOut(duration: 0.35), value: ftmsManager.activityUnits)
+                .frame(width: sceneSize.width, height: sceneSize.height)
+                .offset(y: baseYOffset + floatOffset)
+                .animation(.easeIn(duration: 0.28), value: ftmsManager.activityUnits)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 20)
+                .padding(.bottom, 12)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -215,7 +219,8 @@ struct ContentView: View {
 
     private var floatProgress: CGFloat {
         let extraUnits = max(0, ftmsManager.activityUnits - 60)
-        return min(CGFloat(extraUnits) / 40.0, 1.0)
+        let normalized = min(CGFloat(extraUnits) / 30.0, 1.0)
+        return pow(normalized, 1.8)
     }
 
     private func balloonProgress(for index: Int) -> CGFloat {
@@ -235,20 +240,27 @@ struct ContentView: View {
     }
 
     private func balloonOffset(for index: Int) -> CGSize {
-        let xOffsets: [CGFloat] = [-96, -48, 0, 48, 96]
-        let yOffsets: [CGFloat] = [-178, -198, -212, -198, -178]
+        let xOffsets: [CGFloat] = [-102, -52, 0, 52, 102]
+        let yOffsets: [CGFloat] = [-132, -158, -174, -158, -132]
         return CGSize(width: xOffsets[index], height: yOffsets[index])
     }
 
-    private func balloonString(for index: Int) -> Path {
-        let anchorX: [CGFloat] = [-65, -32, 0, 32, 65]
+    private func balloonString(for index: Int, in sceneSize: CGSize) -> Path {
+        let center = CGPoint(x: sceneSize.width / 2.0, y: sceneSize.height / 2.0)
+        let anchorX: [CGFloat] = [-68, -34, 0, 34, 68]
+        let start = CGPoint(x: center.x + anchorX[index], y: center.y + 28)
         let balloonPoint = balloonOffset(for: index)
+        let balloonSize = 18 + (balloonProgress(for: index) * 44)
+        let end = CGPoint(
+            x: center.x + balloonPoint.width,
+            y: center.y + balloonPoint.height + (balloonSize * 0.62)
+        )
 
         return Path { path in
-            path.move(to: CGPoint(x: anchorX[index], y: -38))
+            path.move(to: start)
             path.addQuadCurve(
-                to: CGPoint(x: balloonPoint.width, y: balloonPoint.height + 30),
-                control: CGPoint(x: (anchorX[index] + balloonPoint.width) * 0.55, y: balloonPoint.height * 0.45)
+                to: end,
+                control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 24)
             )
         }
     }
@@ -258,31 +270,35 @@ struct ContentView: View {
             Rectangle()
                 .fill(Color.brown.opacity(0.9))
                 .frame(width: 170, height: 115)
-                .offset(y: 36)
+                .offset(y: 34)
 
-            Path { path in
-                path.move(to: CGPoint(x: -95, y: -20))
-                path.addLine(to: CGPoint(x: 0, y: -95))
-                path.addLine(to: CGPoint(x: 95, y: -20))
-                path.closeSubpath()
-            }
-            .fill(Color.red.opacity(0.9))
+            Triangle()
+                .fill(Color.red.opacity(0.95))
+                .frame(width: 210, height: 92)
+                .offset(y: -54)
+                .overlay {
+                    Triangle()
+                        .stroke(Color.black.opacity(0.22), lineWidth: 2)
+                        .frame(width: 210, height: 92)
+                        .offset(y: -54)
+                }
 
             Rectangle()
                 .fill(Color.white.opacity(0.95))
                 .frame(width: 34, height: 52)
-                .offset(y: 58)
+                .offset(y: 56)
 
             Circle()
                 .fill(Color.yellow.opacity(0.85))
                 .frame(width: 24, height: 24)
-                .offset(x: -52, y: 28)
+                .offset(x: -52, y: 26)
 
             Circle()
                 .fill(Color.yellow.opacity(0.85))
                 .frame(width: 24, height: 24)
-                .offset(x: 52, y: 28)
+                .offset(x: 52, y: 26)
         }
+        .frame(width: 220, height: 220)
     }
 
     private func balloonView(progress: CGFloat) -> some View {
@@ -306,6 +322,17 @@ struct ContentView: View {
                 .frame(width: size * 0.22, height: size * 0.22)
                 .offset(x: -size * 0.16, y: -size * 0.25)
         }
+    }
+}
+
+private struct Triangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 

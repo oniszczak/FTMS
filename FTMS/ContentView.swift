@@ -105,26 +105,6 @@ struct ContentView: View {
                     }
                 }
 
-                Section("Raw Characteristic Values") {
-                    if ftmsManager.rawValues.isEmpty {
-                        Text("Raw BLE values will appear here as characteristics update.")
-                            .foregroundStyle(.secondary)
-                    } else {
-                        ForEach(ftmsManager.rawValues) { raw in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(raw.name)
-                                    .font(.headline)
-                                Text(raw.uuid)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(raw.valueHex)
-                                    .font(.caption.monospaced())
-                                    .textSelection(.enabled)
-                            }
-                            .padding(.vertical, 2)
-                        }
-                    }
-                }
             }
             .navigationTitle("Gym Machine Buddy")
             .onAppear {

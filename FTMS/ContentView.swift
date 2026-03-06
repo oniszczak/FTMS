@@ -10,8 +10,19 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var ftmsManager = FTMSManager()
 
+    @State private var animationPhase: LiftOffPhase = .inflating
+    @State private var consumedUnits = 0
+    @State private var liftProgress: CGFloat = 0
+    @State private var cycleToken = UUID()
+    @State private var housePalette = HousePalette.random()
+    @State private var balloonColors = (0..<5).map { _ in BalloonPalette.random() }
+
     private var isDeviceConnected: Bool {
         ftmsManager.connectionState.hasPrefix("Connected to") && ftmsManager.connectedDeviceName != nil
+    }
+
+    private var unitsInCurrentCycle: Int {
+        max(0, ftmsManager.activityUnits - consumedUnits)
     }
 
     var body: some View {
@@ -24,6 +35,16 @@ struct ContentView: View {
         }
         .onAppear {
             ftmsManager.startScan()
+        }
+        .onChange(of: ftmsManager.activityUnits) { _, _ in
+            updateAnimationStateIfNeeded()
+        }
+        .onChange(of: isDeviceConnected) { _, isConnected in
+            if !isConnected {
+                resetAnimationState()
+            } else {
+                updateAnimationStateIfNeeded()
+            }
         }
     }
 
@@ -171,8 +192,8 @@ struct ContentView: View {
     private var animationPane: some View {
         GeometryReader { geometry in
             let sceneSize = CGSize(width: 320, height: 360)
-            let maxFloatDistance = geometry.size.height * 0.58
-            let floatOffset = -maxFloatDistance * floatProgress
+            let maxFloatDistance = geometry.size.height + sceneSize.height
+            let floatOffset = -maxFloatDistance * liftProgress
 
             ZStack {
                 LinearGradient(
@@ -181,47 +202,105 @@ struct ContentView: View {
                     endPoint: .bottom
                 )
 
-                VStack(spacing: 6) {
-                    Text("Lift-Off Tracker")
-                        .font(.headline)
-                    Text("Units: \(ftmsManager.activityUnits)")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.top, 12)
-                .frame(maxHeight: .infinity, alignment: .top)
-
-                ZStack {
-                    houseShape
-                        .offset(y: 70)
-
-                    ForEach(0..<5, id: \.self) { stringIndex in
-                        balloonString(for: stringIndex, in: sceneSize)
-                            .stroke(Color.black.opacity(0.45), lineWidth: 1.8)
+                if animationPhase == .celebrating {
+                    Text("You did it!")
+                        .font(.system(size: 44, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .transition(.opacity)
+                } else {
+                    VStack(spacing: 6) {
+                        Text("Lift-Off Tracker")
+                            .font(.headline)
+                        Text("Units: \(ftmsManager.activityUnits)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
+                    .padding(.top, 12)
+                    .frame(maxHeight: .infinity, alignment: .top)
 
-                    ForEach(0..<5, id: \.self) { balloonIndex in
-                        balloonView(progress: balloonProgress(for: balloonIndex))
+                    ZStack {
+                        houseShape
+                            .offset(y: 70)
+
+                        ForEach(0..<5, id: \.self) { stringIndex in
+                            balloonString(for: stringIndex, in: sceneSize)
+                                .stroke(Color.black.opacity(0.45), lineWidth: 1.8)
+                        }
+
+                        ForEach(0..<5, id: \.self) { balloonIndex in
+                            balloonView(
+                                progress: balloonProgress(for: balloonIndex),
+                                palette: balloonColors[balloonIndex]
+                            )
                             .offset(balloonOffset(for: balloonIndex))
+                        }
                     }
+                    .frame(width: sceneSize.width, height: sceneSize.height)
+                    .offset(y: floatOffset)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 }
-                .frame(width: sceneSize.width, height: sceneSize.height)
-                .offset(y: floatOffset)
-                .animation(.easeIn(duration: 0.28), value: ftmsManager.activityUnits)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
+            .animation(.linear(duration: 2.0), value: liftProgress)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private var floatProgress: CGFloat {
-        let extraUnits = max(0, ftmsManager.activityUnits - 60)
-        let normalized = min(CGFloat(extraUnits) / 30.0, 1.0)
-        return pow(normalized, 1.8)
+    private func updateAnimationStateIfNeeded() {
+        guard isDeviceConnected else { return }
+        guard animationPhase == .inflating else { return }
+
+        if unitsInCurrentCycle >= 60 {
+            startLiftOffSequence()
+        }
+    }
+
+    private func startLiftOffSequence() {
+        animationPhase = .lifting
+        consumedUnits += 60
+
+        let token = UUID()
+        cycleToken = token
+
+        withAnimation(.linear(duration: 2.0)) {
+            liftProgress = 1
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            guard cycleToken == token, isDeviceConnected else { return }
+
+            animationPhase = .celebrating
+
+            try? await Task.sleep(for: .seconds(2))
+            guard cycleToken == token, isDeviceConnected else { return }
+
+            randomizeVisualsForNextCycle()
+            liftProgress = 0
+            animationPhase = .inflating
+            updateAnimationStateIfNeeded()
+        }
+    }
+
+    private func resetAnimationState() {
+        cycleToken = UUID()
+        consumedUnits = 0
+        liftProgress = 0
+        animationPhase = .inflating
+        randomizeVisualsForNextCycle()
+    }
+
+    private func randomizeVisualsForNextCycle() {
+        housePalette = HousePalette.random()
+        balloonColors = (0..<5).map { _ in BalloonPalette.random() }
     }
 
     private func balloonProgress(for index: Int) -> CGFloat {
+        if animationPhase != .inflating {
+            return 1
+        }
+
         // Requested ranges: 1-10, 11-20, 21-40, 41-50, 51-60
         let ranges: [(start: Int, end: Int)] = [
             (1, 10),
@@ -233,7 +312,7 @@ struct ContentView: View {
 
         let range = ranges[index]
         let span = max(1, range.end - range.start + 1)
-        let progressed = ftmsManager.activityUnits - range.start + 1
+        let progressed = min(unitsInCurrentCycle, 60) - range.start + 1
         return min(max(CGFloat(progressed) / CGFloat(span), 0), 1)
     }
 
@@ -266,12 +345,12 @@ struct ContentView: View {
     private var houseShape: some View {
         ZStack {
             Rectangle()
-                .fill(Color.brown.opacity(0.9))
+                .fill(housePalette.body)
                 .frame(width: 170, height: 115)
                 .offset(y: 34)
 
             Triangle()
-                .fill(Color.red.opacity(0.95))
+                .fill(housePalette.roof)
                 .frame(width: 210, height: 92)
                 .offset(y: -54)
                 .overlay {
@@ -282,24 +361,24 @@ struct ContentView: View {
                 }
 
             Rectangle()
-                .fill(Color.white.opacity(0.95))
+                .fill(housePalette.door)
                 .frame(width: 34, height: 52)
                 .offset(y: 56)
 
             Circle()
-                .fill(Color.yellow.opacity(0.85))
+                .fill(housePalette.window)
                 .frame(width: 24, height: 24)
                 .offset(x: -52, y: 26)
 
             Circle()
-                .fill(Color.yellow.opacity(0.85))
+                .fill(housePalette.window)
                 .frame(width: 24, height: 24)
                 .offset(x: 52, y: 26)
         }
         .frame(width: 220, height: 220)
     }
 
-    private func balloonView(progress: CGFloat) -> some View {
+    private func balloonView(progress: CGFloat, palette: BalloonPalette) -> some View {
         let clamped = min(max(progress, 0), 1)
         let size = 18 + (clamped * 44)
 
@@ -307,7 +386,7 @@ struct ContentView: View {
             Ellipse()
                 .fill(
                     LinearGradient(
-                        colors: [Color.pink.opacity(0.85), Color.purple.opacity(0.75)],
+                        colors: [palette.top.opacity(0.9), palette.bottom.opacity(0.72)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -320,6 +399,45 @@ struct ContentView: View {
                 .frame(width: size * 0.22, height: size * 0.22)
                 .offset(x: -size * 0.16, y: -size * 0.25)
         }
+    }
+}
+
+private enum LiftOffPhase {
+    case inflating
+    case lifting
+    case celebrating
+}
+
+private struct HousePalette {
+    let body: Color
+    let roof: Color
+    let door: Color
+    let window: Color
+
+    static func random() -> HousePalette {
+        let bodyColors: [Color] = [.brown, .orange, .mint, .teal, .indigo, .cyan]
+        let roofColors: [Color] = [.red, .pink, .purple, .blue, .green]
+        let doorColors: [Color] = [.white, .gray, .black.opacity(0.7), .yellow.opacity(0.9)]
+        let windowColors: [Color] = [.yellow.opacity(0.85), .white.opacity(0.9), .cyan.opacity(0.9)]
+
+        return HousePalette(
+            body: bodyColors.randomElement() ?? .brown,
+            roof: roofColors.randomElement() ?? .red,
+            door: doorColors.randomElement() ?? .white,
+            window: windowColors.randomElement() ?? .yellow.opacity(0.85)
+        )
+    }
+}
+
+private struct BalloonPalette {
+    let top: Color
+    let bottom: Color
+
+    static func random() -> BalloonPalette {
+        let colors: [Color] = [.red, .orange, .yellow, .green, .mint, .teal, .cyan, .blue, .indigo, .purple, .pink]
+        let top = colors.randomElement() ?? .pink
+        let bottom = colors.randomElement() ?? .purple
+        return BalloonPalette(top: top, bottom: bottom)
     }
 }
 

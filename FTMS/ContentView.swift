@@ -10,16 +10,29 @@ import SwiftUI
 struct ContentView: View {
     @StateObject private var ftmsManager = FTMSManager()
 
+    private var isDeviceConnected: Bool {
+        ftmsManager.connectionState.hasPrefix("Connected to") && ftmsManager.connectedDeviceName != nil
+    }
+
     var body: some View {
+        Group {
+            if isDeviceConnected {
+                connectedDashboard
+            } else {
+                setupView
+            }
+        }
+        .onAppear {
+            ftmsManager.startScan()
+        }
+    }
+
+    private var setupView: some View {
         NavigationStack {
             List {
                 Section("Bluetooth") {
                     LabeledContent("State", value: ftmsManager.bluetoothState)
                     LabeledContent("Connection", value: ftmsManager.connectionState)
-
-                    if let connectedName = ftmsManager.connectedDeviceName {
-                        LabeledContent("Connected Device", value: connectedName)
-                    }
 
                     if let error = ftmsManager.lastError {
                         Text(error)
@@ -27,28 +40,19 @@ struct ContentView: View {
                             .font(.footnote)
                     }
 
-                    HStack {
-                        Button(ftmsManager.isScanning ? "Stop Scan" : "Scan for Devices") {
-                            if ftmsManager.isScanning {
-                                ftmsManager.stopScan()
-                            } else {
-                                ftmsManager.startScan()
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        if ftmsManager.connectedDeviceName != nil {
-                            Button("Disconnect", role: .destructive) {
-                                ftmsManager.disconnect()
-                            }
-                            .buttonStyle(.bordered)
+                    Button(ftmsManager.isScanning ? "Stop Scan" : "Scan for Devices") {
+                        if ftmsManager.isScanning {
+                            ftmsManager.stopScan()
+                        } else {
+                            ftmsManager.startScan()
                         }
                     }
+                    .buttonStyle(.borderedProminent)
                 }
 
                 Section("Available Devices") {
                     if ftmsManager.discoveredDevices.isEmpty {
-                        Text("No devices discovered yet. Start a scan and power on your rower/bike.")
+                        Text("No FTMS/CSC devices discovered yet. Start a scan and power on your equipment.")
                             .foregroundStyle(.secondary)
                     } else {
                         ForEach(ftmsManager.discoveredDevices) { device in
@@ -93,24 +97,87 @@ struct ContentView: View {
                         }
                     }
                 }
+            }
+            .navigationTitle("Gym Machine Buddy")
+        }
+    }
 
-                Section("Live Metrics (FTMS / CSC)") {
-                    if ftmsManager.metrics.isEmpty {
-                        Text("Connect to a device and start exercising to see live cadence, speed, power, heart rate, and other FTMS/CSC values.")
-                            .foregroundStyle(.secondary)
-                    } else {
+    private var connectedDashboard: some View {
+        GeometryReader { geometry in
+            let isPortrait = geometry.size.height >= geometry.size.width
+
+            Group {
+                if isPortrait {
+                    VStack(spacing: 12) {
+                        metricsPane
+                        animationPane
+                    }
+                } else {
+                    HStack(spacing: 12) {
+                        metricsPane
+                        animationPane
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(uiColor: .systemGroupedBackground))
+        }
+    }
+
+    private var metricsPane: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(ftmsManager.connectedDeviceName ?? "Connected Device")
+                    .font(.title3.weight(.semibold))
+
+                Spacer()
+
+                Button("Disconnect", role: .destructive) {
+                    ftmsManager.disconnect()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+                .font(.subheadline.weight(.semibold))
+            }
+
+            Divider()
+
+            if ftmsManager.metrics.isEmpty {
+                Text("Waiting for live metrics...")
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(spacing: 8) {
                         ForEach(ftmsManager.metrics) { metric in
-                            LabeledContent(metric.name, value: metric.value)
+                            HStack {
+                                Text(metric.name)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text(metric.value)
+                                    .fontWeight(.medium)
+                            }
+                            .font(.subheadline)
                         }
                     }
                 }
-
-            }
-            .navigationTitle("Gym Machine Buddy")
-            .onAppear {
-                ftmsManager.startScan()
             }
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var animationPane: some View {
+        VStack {
+            Text("Animation Pane")
+                .font(.title3.weight(.semibold))
+            Text("Ready for metric-driven animation.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

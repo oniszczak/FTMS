@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  FTMS
+//  FTMS Buddy
 //
 //  Created by ALEKSANDER ONISZCZAK on 2026-03-05.
 //

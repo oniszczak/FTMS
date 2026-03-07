@@ -14,6 +14,8 @@ struct ContentView: View {
     @State private var consumedUnits = 0
     @State private var liftProgress: CGFloat = 0
     @State private var cycleToken = UUID()
+    @State private var unitAnimationToken = UUID()
+    @State private var animatedActivityUnits = 0
     @State private var housePalette = HousePalette.random()
     @State private var balloonColors = (0..<5).map { _ in BalloonPalette.random() }
 
@@ -22,7 +24,7 @@ struct ContentView: View {
     }
 
     private var unitsInCurrentCycle: Int {
-        max(0, ftmsManager.activityUnits - consumedUnits)
+        max(0, animatedActivityUnits - consumedUnits)
     }
 
     var body: some View {
@@ -37,13 +39,13 @@ struct ContentView: View {
             ftmsManager.startScan()
         }
         .onChange(of: ftmsManager.activityUnits) { _, _ in
-            updateAnimationStateIfNeeded()
+            syncAnimatedUnits()
         }
         .onChange(of: isDeviceConnected) { _, isConnected in
             if !isConnected {
                 resetAnimationState()
             } else {
-                updateAnimationStateIfNeeded()
+                syncAnimatedUnits()
             }
         }
     }
@@ -212,7 +214,7 @@ struct ContentView: View {
                     VStack(spacing: 6) {
                         Text("Lift-Off Tracker")
                             .font(.headline)
-                        Text("Units: \(ftmsManager.activityUnits)")
+                        Text("Units: \(animatedActivityUnits)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -256,6 +258,32 @@ struct ContentView: View {
         }
     }
 
+    private func syncAnimatedUnits() {
+        guard isDeviceConnected else { return }
+
+        let targetUnits = ftmsManager.activityUnits
+
+        if targetUnits <= animatedActivityUnits {
+            unitAnimationToken = UUID()
+            animatedActivityUnits = targetUnits
+            updateAnimationStateIfNeeded()
+            return
+        }
+
+        let token = UUID()
+        unitAnimationToken = token
+
+        Task { @MainActor in
+            while unitAnimationToken == token,
+                  isDeviceConnected,
+                  animatedActivityUnits < targetUnits {
+                animatedActivityUnits += 1
+                updateAnimationStateIfNeeded()
+                try? await Task.sleep(for: .milliseconds(80))
+            }
+        }
+    }
+
     private func startLiftOffSequence() {
         animationPhase = .lifting
         consumedUnits += 60
@@ -285,7 +313,9 @@ struct ContentView: View {
 
     private func resetAnimationState() {
         cycleToken = UUID()
+        unitAnimationToken = UUID()
         consumedUnits = 0
+        animatedActivityUnits = 0
         liftProgress = 0
         animationPhase = .inflating
         randomizeVisualsForNextCycle()

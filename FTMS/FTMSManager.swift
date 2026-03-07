@@ -58,6 +58,8 @@ final class FTMSManager: NSObject, ObservableObject {
     private var rawStore: [String: RawCharacteristicValue] = [:]
     private var cscSnapshots: [UUID: CSCSnapshot] = [:]
     private var lastRowerStrokeCount: UInt16?
+    private var rowerStrokeCountBaseline: UInt16?
+    private var shouldUseRowerStrokeCountForUnits = false
 
     override init() {
         super.init()
@@ -120,6 +122,8 @@ final class FTMSManager: NSObject, ObservableObject {
         rawValues = []
         cscSnapshots = [:]
         lastRowerStrokeCount = nil
+        rowerStrokeCountBaseline = nil
+        shouldUseRowerStrokeCountForUnits = false
         activityUnits = 0
     }
 
@@ -262,11 +266,21 @@ final class FTMSManager: NSObject, ObservableObject {
 
         if let strokeCount = parser.readUInt16(at: index) {
             updateMetric("Rower Stroke Count", "\(strokeCount)")
+            shouldUseRowerStrokeCountForUnits = true
 
-            if let previousStrokeCount = lastRowerStrokeCount,
-               let delta = deltaCounter(current: strokeCount, previous: previousStrokeCount),
-               delta > 0 {
-                addActivityUnits(Int(delta))
+            if rowerStrokeCountBaseline == nil {
+                rowerStrokeCountBaseline = strokeCount
+            }
+
+            if let baseline = rowerStrokeCountBaseline {
+                if strokeCount >= baseline {
+                    // Rower units follow displayed stroke count exactly from session baseline.
+                    activityUnits = Int(strokeCount - baseline)
+                } else {
+                    // If the machine resets the stroke counter, reset baseline to avoid jumps.
+                    rowerStrokeCountBaseline = strokeCount
+                    activityUnits = 0
+                }
             }
 
             lastRowerStrokeCount = strokeCount
@@ -401,7 +415,8 @@ final class FTMSManager: NSObject, ObservableObject {
         var index = 1
 
         var snapshot = cscSnapshots[peripheralID] ?? CSCSnapshot()
-        var consumedUnitsFromWheel = false
+        var wheelDeltaForUnits: Int?
+        var crankDeltaForUnits: Int?
 
         if flags.bit(0), let wheelRevolutions = parser.readUInt32(at: index), let wheelEventTime = parser.readUInt16(at: index + 4) {
             updateMetric("CSC Wheel Revolutions", "\(wheelRevolutions)")
@@ -416,8 +431,7 @@ final class FTMSManager: NSObject, ObservableObject {
                 let speedMetersPerSecond = revPerSecond * 2.105
                 updateMetric("CSC Speed", String(format: "%.2f km/h", speedMetersPerSecond * 3.6))
                 updateMetric("CSC Wheel RPM", String(format: "%.1f rpm", revPerSecond * 60.0))
-                addActivityUnits(Int(deltaRevolutions))
-                consumedUnitsFromWheel = true
+                wheelDeltaForUnits = Int(deltaRevolutions)
             }
 
             snapshot.wheelRevolutions = wheelRevolutions
@@ -436,15 +450,20 @@ final class FTMSManager: NSObject, ObservableObject {
                deltaRevolutions > 0 {
                 let cadenceRPM = (Double(deltaRevolutions) / deltaSeconds) * 60.0
                 updateMetric("CSC Cadence", String(format: "%.1f rpm", cadenceRPM))
-
-                // Prefer wheel revolutions when present to avoid double counting combo sensors.
-                if !consumedUnitsFromWheel {
-                    addActivityUnits(Int(deltaRevolutions))
-                }
+                crankDeltaForUnits = Int(deltaRevolutions)
             }
 
             snapshot.crankRevolutions = crankRevolutions
             snapshot.crankEventTime = crankEventTime
+        }
+
+        if !shouldUseRowerStrokeCountForUnits {
+            // For bike-like devices, prefer crank rotations for unit pacing.
+            if let crankDeltaForUnits, crankDeltaForUnits > 0 {
+                addActivityUnits(crankDeltaForUnits)
+            } else if let wheelDeltaForUnits, wheelDeltaForUnits > 0 {
+                addActivityUnits(wheelDeltaForUnits)
+            }
         }
 
         cscSnapshots[peripheralID] = snapshot

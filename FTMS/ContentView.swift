@@ -46,6 +46,12 @@ struct ContentView: View {
         Self.paneDarkTextIndexes.contains(paneColorIndex) ? .black : .white
     }
 
+    private var scoreTokens: [ScoreToken] {
+        let hotels = completedTakeoffs / 5
+        let houses = completedTakeoffs % 5
+        return Array(repeating: .hotel, count: hotels) + Array(repeating: .house, count: houses)
+    }
+
     private var heliumLitresDisplay: String {
         let litres = Double(animatedActivityUnits) * 1.4
         if litres.rounded() == litres {
@@ -242,6 +248,13 @@ struct ContentView: View {
             ZStack {
                 paneBackgroundColor
 
+                VStack {
+                    scoreStrip
+                    Spacer()
+                }
+                .padding(.top, 8)
+                .padding(.horizontal, 10)
+
                 if animationPhase == .celebrating {
                     Text("You did it!")
                         .font(.system(size: 44, weight: .heavy, design: .rounded))
@@ -385,8 +398,14 @@ struct ContentView: View {
 
     private func balloonString(for index: Int, in sceneSize: CGSize) -> Path {
         let center = CGPoint(x: sceneSize.width / 2.0, y: sceneSize.height / 2.0)
-        let anchorX: [CGFloat] = [-52, -26, 0, 26, 52]
-        let start = CGPoint(x: center.x + anchorX[index], y: center.y + Self.houseYOffset + 2)
+
+        // Anchor points follow the sloped roof line (higher in center, lower toward edges).
+        let anchorX: [CGFloat] = [-48, -24, 0, 24, 48]
+        let roofApexY = center.y + Self.houseYOffset - 50
+        let roofSlopePerPoint: CGFloat = 56.0 / 74.0
+        let startY = roofApexY + abs(anchorX[index]) * roofSlopePerPoint
+        let start = CGPoint(x: center.x + anchorX[index], y: startY)
+
         let balloonPoint = balloonOffset(for: index)
         let balloonSize = 18 + (balloonProgress(for: index) * 44)
         let end = CGPoint(
@@ -401,6 +420,26 @@ struct ContentView: View {
                 control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 16)
             )
         }
+    }
+
+    private var scoreStrip: some View {
+        if scoreTokens.isEmpty {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 18), spacing: 6)], spacing: 6) {
+                ForEach(Array(scoreTokens.enumerated()), id: \.offset) { _, token in
+                    switch token {
+                    case .house:
+                        TinyHouseIcon(color: paneForegroundColor)
+                    case .hotel:
+                        TinyHotelIcon(color: paneForegroundColor)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        )
     }
 
     private var houseShape: some View {
@@ -547,6 +586,45 @@ private struct BalloonPalette {
         let top = colors.randomElement() ?? .pink
         let bottom = colors.randomElement() ?? .purple
         return BalloonPalette(top: top, bottom: bottom)
+    }
+}
+
+private enum ScoreToken {
+    case house
+    case hotel
+}
+
+private struct TinyHouseIcon: View {
+    let color: Color
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Triangle()
+                .fill(color)
+                .frame(width: 11, height: 5)
+            Rectangle()
+                .fill(color)
+                .frame(width: 8, height: 6)
+        }
+        .frame(width: 12, height: 12)
+    }
+}
+
+private struct TinyHotelIcon: View {
+    let color: Color
+
+    var body: some View {
+        Rectangle()
+            .fill(color)
+            .frame(width: 18, height: 10)
+            .overlay {
+                HStack(spacing: 2) {
+                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
+                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
+                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
+                }
+            }
+            .frame(width: 20, height: 12)
     }
 }
 

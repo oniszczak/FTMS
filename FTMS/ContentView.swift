@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var cycleToken = UUID()
     @State private var unitAnimationToken = UUID()
     @State private var animatedActivityUnits = 0
+    @State private var completedTakeoffs = 0
     @State private var housePalette = HousePalette.random()
     @State private var balloonColors = (0..<5).map { _ in BalloonPalette.random() }
 
@@ -25,6 +26,22 @@ struct ContentView: View {
 
     private var unitsInCurrentCycle: Int {
         max(0, animatedActivityUnits - consumedUnits)
+    }
+
+    private static let paneColorSteps: [Color] = [.yellow, .red, .green, .purple, .black, .white, .blue]
+
+    private static let paneDarkTextIndexes: Set<Int> = [0, 2, 5]
+
+    private var paneColorIndex: Int {
+        (completedTakeoffs / 3) % Self.paneColorSteps.count
+    }
+
+    private var paneBackgroundColor: Color {
+        Self.paneColorSteps[paneColorIndex]
+    }
+
+    private var paneForegroundColor: Color {
+        Self.paneDarkTextIndexes.contains(paneColorIndex) ? .black : .white
     }
 
     var body: some View {
@@ -198,25 +215,22 @@ struct ContentView: View {
             let floatOffset = -maxFloatDistance * liftProgress
 
             ZStack {
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.20), Color.cyan.opacity(0.10), Color.white.opacity(0.08)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                paneBackgroundColor
 
                 if animationPhase == .celebrating {
                     Text("You did it!")
                         .font(.system(size: 44, weight: .heavy, design: .rounded))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(paneForegroundColor)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity)
                 } else {
                     VStack(spacing: 6) {
                         Text("Lift-Off Tracker")
                             .font(.headline)
+                            .foregroundStyle(paneForegroundColor)
                         Text("Units: \(animatedActivityUnits)")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(paneForegroundColor.opacity(0.85))
                     }
                     .padding(.top, 12)
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -246,6 +260,7 @@ struct ContentView: View {
             .animation(.linear(duration: 2.0), value: liftProgress)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -304,6 +319,7 @@ struct ContentView: View {
             try? await Task.sleep(for: .seconds(2))
             guard cycleToken == token, isDeviceConnected else { return }
 
+            completedTakeoffs += 1
             randomizeVisualsForNextCycle()
             liftProgress = 0
             animationPhase = .inflating
@@ -316,6 +332,7 @@ struct ContentView: View {
         unitAnimationToken = UUID()
         consumedUnits = 0
         animatedActivityUnits = 0
+        completedTakeoffs = 0
         liftProgress = 0
         animationPhase = .inflating
         randomizeVisualsForNextCycle()

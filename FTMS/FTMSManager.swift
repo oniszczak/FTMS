@@ -60,6 +60,7 @@ final class FTMSManager: NSObject, ObservableObject {
     private var lastRowerStrokeCount: UInt16?
     private var rowerStrokeCountBaseline: UInt16?
     private var shouldUseRowerStrokeCountForUnits = false
+    private var autoScanRequested = true
 
     override init() {
         super.init()
@@ -67,8 +68,10 @@ final class FTMSManager: NSObject, ObservableObject {
     }
 
     func startScan() {
+        autoScanRequested = true
+
         guard centralManager.state == .poweredOn else {
-            lastError = "Bluetooth is not ready yet."
+            isScanning = false
             return
         }
 
@@ -85,6 +88,7 @@ final class FTMSManager: NSObject, ObservableObject {
     }
 
     func stopScan() {
+        autoScanRequested = false
         centralManager.stopScan()
         isScanning = false
     }
@@ -570,8 +574,11 @@ extension FTMSManager: CBCentralManagerDelegate {
         Task { @MainActor in
             bluetoothState = bluetoothStateDescription(central.state)
             if central.state != .poweredOn {
-                stopScan()
+                centralManager.stopScan()
+                isScanning = false
                 connectionState = "Bluetooth not ready"
+            } else if autoScanRequested {
+                startScan()
             }
         }
     }

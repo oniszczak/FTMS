@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 struct ContentView: View {
     @StateObject private var ftmsManager = FTMSManager()
@@ -42,6 +43,14 @@ struct ContentView: View {
 
     private var paneForegroundColor: Color {
         Self.paneDarkTextIndexes.contains(paneColorIndex) ? .black : .white
+    }
+
+    private var heliumLitresDisplay: String {
+        let litres = Double(animatedActivityUnits) * 1.4
+        if litres.rounded() == litres {
+            return "\(Int(litres)) L"
+        }
+        return String(format: "%.1f L", litres)
     }
 
     var body: some View {
@@ -199,6 +208,15 @@ struct ContentView: View {
                             }
                             .font(.subheadline)
                         }
+
+                        HStack {
+                            Text("Helium")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text(heliumLitresDisplay)
+                                .fontWeight(.medium)
+                        }
+                        .font(.subheadline)
                     }
                 }
             }
@@ -224,14 +242,6 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .transition(.opacity)
                 } else {
-                    VStack(spacing: 6) {
-                        Text("Units: \(animatedActivityUnits)")
-                            .font(.subheadline)
-                            .foregroundStyle(paneForegroundColor.opacity(0.85))
-                    }
-                    .padding(.top, 12)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
                     ZStack {
                         houseShape
                             .offset(y: 70)

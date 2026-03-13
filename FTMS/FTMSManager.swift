@@ -469,8 +469,7 @@ final class FTMSManager: NSObject, ObservableObject {
     }
 
     private func parseCSCFeature(_ parser: FTMSParser) {
-        guard let featureFlags = parser.readUInt16(at: 0) else { return }
-        updateMetric("CSC Feature Flags", String(format: "0x%04X", featureFlags))
+        _ = parser.readUInt16(at: 0)
     }
 
     private func parseSensorLocation(_ parser: FTMSParser) {

@@ -405,9 +405,8 @@ final class FTMSManager: NSObject, ObservableObject {
     }
 
     private func parseFitnessMachineFeature(_ parser: FTMSParser) {
-        guard let machineFeatures = parser.readUInt32(at: 0), let targetFeatures = parser.readUInt32(at: 4) else { return }
-        updateMetric("FTMS Machine Feature Flags", String(format: "0x%08X", machineFeatures))
-        updateMetric("FTMS Target Setting Feature Flags", String(format: "0x%08X", targetFeatures))
+        _ = parser.readUInt32(at: 0)
+        _ = parser.readUInt32(at: 4)
     }
 
     private func parseCyclingSpeedCadenceMeasurement(_ parser: FTMSParser, peripheralID: UUID) {

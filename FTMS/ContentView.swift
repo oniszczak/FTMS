@@ -225,9 +225,6 @@ struct ContentView: View {
                         .transition(.opacity)
                 } else {
                     VStack(spacing: 6) {
-                        Text("Lift-Off Tracker")
-                            .font(.headline)
-                            .foregroundStyle(paneForegroundColor)
                         Text("Units: \(animatedActivityUnits)")
                             .font(.subheadline)
                             .foregroundStyle(paneForegroundColor.opacity(0.85))

@@ -32,6 +32,7 @@ struct ContentView: View {
     private static let paneColorSteps: [Color] = [.yellow, .red, .green, .purple, .black, .white, .blue]
 
     private static let paneDarkTextIndexes: Set<Int> = [0, 2, 5]
+    private static let houseYOffset: CGFloat = 70
 
     private var paneColorIndex: Int {
         (completedTakeoffs / 3) % Self.paneColorSteps.count
@@ -250,7 +251,7 @@ struct ContentView: View {
                 } else {
                     ZStack {
                         houseShape
-                            .offset(y: 70)
+                            .offset(y: Self.houseYOffset)
 
                         ForEach(0..<5, id: \.self) { stringIndex in
                             balloonString(for: stringIndex, in: sceneSize)
@@ -378,14 +379,14 @@ struct ContentView: View {
 
     private func balloonOffset(for index: Int) -> CGSize {
         let xOffsets: [CGFloat] = [-102, -52, 0, 52, 102]
-        let yOffsets: [CGFloat] = [-132, -158, -174, -158, -132]
+        let yOffsets: [CGFloat] = [-88, -110, -126, -110, -88]
         return CGSize(width: xOffsets[index], height: yOffsets[index])
     }
 
     private func balloonString(for index: Int, in sceneSize: CGSize) -> Path {
         let center = CGPoint(x: sceneSize.width / 2.0, y: sceneSize.height / 2.0)
-        let anchorX: [CGFloat] = [-86, -44, 0, 44, 86]
-        let start = CGPoint(x: center.x + anchorX[index], y: center.y + 58)
+        let anchorX: [CGFloat] = [-52, -26, 0, 26, 52]
+        let start = CGPoint(x: center.x + anchorX[index], y: center.y + Self.houseYOffset + 2)
         let balloonPoint = balloonOffset(for: index)
         let balloonSize = 18 + (balloonProgress(for: index) * 44)
         let end = CGPoint(
@@ -397,7 +398,7 @@ struct ContentView: View {
             path.move(to: start)
             path.addQuadCurve(
                 to: end,
-                control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 18)
+                control: CGPoint(x: (start.x + end.x) * 0.5, y: min(start.y, end.y) - 16)
             )
         }
     }
@@ -406,36 +407,71 @@ struct ContentView: View {
         ZStack {
             Rectangle()
                 .fill(housePalette.body)
-                .frame(width: 170, height: 115)
-                .offset(y: 34)
+                .frame(width: 116, height: 74)
+                .offset(y: 32)
 
             Triangle()
                 .fill(housePalette.roof)
-                .frame(width: 210, height: 92)
-                .offset(y: -54)
+                .frame(width: 148, height: 56)
+                .offset(y: -22)
                 .overlay {
                     Triangle()
-                        .stroke(Color.black.opacity(0.22), lineWidth: 2)
-                        .frame(width: 210, height: 92)
-                        .offset(y: -54)
+                        .stroke(Color.black.opacity(0.25), lineWidth: 2)
+                        .frame(width: 148, height: 56)
+                        .offset(y: -22)
                 }
 
             Rectangle()
+                .fill(housePalette.roof.opacity(0.92))
+                .frame(width: 14, height: 24)
+                .offset(x: 34, y: -32)
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.black.opacity(0.28), lineWidth: 1)
+                        .frame(width: 14, height: 24)
+                        .offset(x: 34, y: -32)
+                }
+
+            TimelineView(.animation) { context in
+                ForEach(0..<3, id: \.self) { index in
+                    smokePuff(index: index, time: context.date.timeIntervalSinceReferenceDate)
+                }
+            }
+
+            Rectangle()
                 .fill(housePalette.door)
-                .frame(width: 34, height: 52)
-                .offset(y: 56)
+                .frame(width: 20, height: 34)
+                .offset(y: 45)
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.black.opacity(0.35), lineWidth: 1)
+                        .frame(width: 20, height: 34)
+                        .offset(y: 45)
+                }
 
-            Circle()
+            Rectangle()
                 .fill(housePalette.window)
-                .frame(width: 24, height: 24)
-                .offset(x: -52, y: 26)
+                .frame(width: 14, height: 14)
+                .offset(x: -32, y: 28)
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.black.opacity(0.35), lineWidth: 1)
+                        .frame(width: 14, height: 14)
+                        .offset(x: -32, y: 28)
+                }
 
-            Circle()
+            Rectangle()
                 .fill(housePalette.window)
-                .frame(width: 24, height: 24)
-                .offset(x: 52, y: 26)
+                .frame(width: 14, height: 14)
+                .offset(x: 32, y: 28)
+                .overlay {
+                    Rectangle()
+                        .stroke(Color.black.opacity(0.35), lineWidth: 1)
+                        .frame(width: 14, height: 14)
+                        .offset(x: 32, y: 28)
+                }
         }
-        .frame(width: 220, height: 220)
+        .frame(width: 170, height: 170)
     }
 
     private func balloonView(progress: CGFloat, palette: BalloonPalette) -> some View {
@@ -460,6 +496,19 @@ struct ContentView: View {
                 .offset(x: -size * 0.16, y: -size * 0.25)
         }
     }
+
+    private func smokePuff(index: Int, time: TimeInterval) -> some View {
+        let speed = 0.32
+        let phase = CGFloat((time * speed) + (Double(index) * 0.22)).truncatingRemainder(dividingBy: 1)
+        let size = 8.0 + (phase * 8.0)
+        let xOffset = 34.0 + (phase * 10.0) + CGFloat(index)
+        let yOffset = -50.0 - (phase * 22.0) - CGFloat(index * 5)
+
+        return Circle()
+            .fill(Color.white.opacity(0.28 + (0.22 * (1.0 - phase))))
+            .frame(width: size, height: size)
+            .offset(x: xOffset, y: yOffset)
+    }
 }
 
 private enum LiftOffPhase {
@@ -477,14 +526,14 @@ private struct HousePalette {
     static func random() -> HousePalette {
         let bodyColors: [Color] = [.brown, .orange, .mint, .teal, .indigo, .cyan]
         let roofColors: [Color] = [.red, .pink, .purple, .blue, .green]
-        let doorColors: [Color] = [.white, .gray, .black.opacity(0.7), .yellow.opacity(0.9)]
-        let windowColors: [Color] = [.yellow.opacity(0.85), .white.opacity(0.9), .cyan.opacity(0.9)]
+        let doorColors: [Color] = [.black.opacity(0.8), .white.opacity(0.95), .gray.opacity(0.9)]
+        let windowColors: [Color] = [.white.opacity(0.95), .yellow.opacity(0.9), .cyan.opacity(0.9)]
 
         return HousePalette(
             body: bodyColors.randomElement() ?? .brown,
             roof: roofColors.randomElement() ?? .red,
-            door: doorColors.randomElement() ?? .white,
-            window: windowColors.randomElement() ?? .yellow.opacity(0.85)
+            door: doorColors.randomElement() ?? .black.opacity(0.8),
+            window: windowColors.randomElement() ?? .white.opacity(0.95)
         )
     }
 }

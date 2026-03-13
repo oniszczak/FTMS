@@ -79,6 +79,12 @@ struct ContentView: View {
     private var setupView: some View {
         NavigationStack {
             List {
+                Section {
+                    Text("Power on your gym equipment and select your device from the device list below. If your device does not show up, try waking it up by peddling, rowing etc.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Bluetooth") {
                     LabeledContent("State", value: ftmsManager.bluetoothState)
                     LabeledContent("Connection", value: ftmsManager.connectionState)

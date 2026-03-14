@@ -428,7 +428,7 @@ struct ContentView: View {
         }
 
         return AnyView(
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 18), spacing: 6)], spacing: 6) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 36), spacing: 8)], spacing: 8) {
                 ForEach(Array(scoreTokens.enumerated()), id: \.offset) { _, token in
                     switch token {
                     case .house:
@@ -601,12 +601,12 @@ private struct TinyHouseIcon: View {
         VStack(spacing: 1) {
             Triangle()
                 .fill(color)
-                .frame(width: 11, height: 5)
+                .frame(width: 22, height: 10)
             Rectangle()
                 .fill(color)
-                .frame(width: 8, height: 6)
+                .frame(width: 16, height: 12)
         }
-        .frame(width: 12, height: 12)
+        .frame(width: 24, height: 24)
     }
 }
 
@@ -614,17 +614,15 @@ private struct TinyHotelIcon: View {
     let color: Color
 
     var body: some View {
-        Rectangle()
-            .fill(color)
-            .frame(width: 18, height: 10)
-            .overlay {
-                HStack(spacing: 2) {
-                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
-                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
-                    Rectangle().fill(Color.clear).frame(width: 1, height: 1)
-                }
-            }
-            .frame(width: 20, height: 12)
+        VStack(spacing: 1) {
+            Triangle()
+                .fill(color)
+                .frame(width: 34, height: 10)
+            Rectangle()
+                .fill(color)
+                .frame(width: 28, height: 16)
+        }
+        .frame(width: 36, height: 28)
     }
 }
 
